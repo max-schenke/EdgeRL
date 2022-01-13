@@ -1,5 +1,5 @@
-# Rcubic
-Remote real-life reinforcement learning
+# EdgeRL
+Edge Reinforcement Learning for Real-World Control Applications
 
 The toolchain featured in this repository is to be used for reinforcement learning (RL) applications within real-world experiments. 
 State transition samples that have been measured on an available plant system are sent from the test bench computer to an edge computing workstation via TCP/IP.
