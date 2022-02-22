@@ -39,6 +39,8 @@ Copyright 2021, dSPACE GmbH. All rights reserved.
 # Provide print function with parameter end
 from __future__ import print_function
 
+import select
+
 import clr
 import os, sys, time
 
@@ -47,11 +49,13 @@ import socket
 import numpy as np
 import struct
 from interface_functions import NeuralNetworkDecoder
+import threading
 
 TCP_IP = '131.234.124.79'  # host ip Address or "local host"
-TCP_PORT_DATA = 1001  #
-TCP_PORT_WEIGHTS = 1002  #
-BUFFER_SIZE = 988 # 1024
+TCP_PORT_DATA = 1030  #
+TCP_PORT_WEIGHTS = 1031  #
+BUFFER_SIZE = 1008 # = floor(1024 // (measurement_size * 4)) * (measurement_size * 4) # <- 4 = nb of bits per float
+neurons_per_layer = 127
 b = bytes()  # byte container for dSPACE XIL API lists
 # create socket and connect
 data_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # TCP
@@ -170,22 +174,24 @@ if __name__ == "__main__":
             DemoMAPort.StartSimulation()
             print("...done.\n")
 
-            # ----------------------------------------------------------------------
+        # ----------------------------------------------------------------------
         # Define the variables to be captured
         # ----------------------------------------------------------------------
+        # housekeeping
         manualCaptureTrigger = masterVariablesPrefix + "Manual_Trigger/Value"
+        learningRate = masterVariablesPrefix + "Learning_Rate/Value"
 
         # measurement
-        stateOmega = masterVariablesPrefix + "Subsystem/Featurizer/omega_me_scaling/Out1"
-        stateCurrentId = masterVariablesPrefix + "Subsystem/Featurizer/current_scaling/Out1[0]"
-        stateCurrentIq = masterVariablesPrefix + "Subsystem/Featurizer/current_scaling/Out1[1]"
-        stateVoltageUd = masterVariablesPrefix + "Subsystem/Featurizer/u_dq_scaling/Out1[0]"
-        stateVoltageUq = masterVariablesPrefix + "Subsystem/Featurizer/u_dq_scaling/Out1[1]"
-        statePositionScaledCos = masterVariablesPrefix + "Subsystem/Featurizer/position_scaling/Out1[0]"
-        statePositionScaledSin = masterVariablesPrefix + "Subsystem/Featurizer/position_scaling/Out1[1]"
-        stateCurrentStator = masterVariablesPrefix + "Subsystem/Featurizer/stator_current_scaling/i_s_norm"
-        stateTorqueRef = masterVariablesPrefix + "Subsystem/Featurizer/T_ref_scaling/Out1"
-        action = masterVariablesPrefix + "Subsystem/EpsilonSafetyActionSelection/a_out"
+        stateOmega = masterVariablesPrefix + "Controller/Featurizer/omega_me_scaling/Out1"
+        stateCurrentId = masterVariablesPrefix + "Controller/Featurizer/current_scaling/Out1[0]"
+        stateCurrentIq = masterVariablesPrefix + "Controller/Featurizer/current_scaling/Out1[1]"
+        stateVoltageUd = masterVariablesPrefix + "Controller/Featurizer/u_dq_scaling/Out1[0]"
+        stateVoltageUq = masterVariablesPrefix + "Controller/Featurizer/u_dq_scaling/Out1[1]"
+        statePositionScaledCos = masterVariablesPrefix + "Controller/Featurizer/position_scaling/Out1[0]"
+        statePositionScaledSin = masterVariablesPrefix + "Controller/Featurizer/position_scaling/Out1[1]"
+        stateCurrentStator = masterVariablesPrefix + "Controller/Featurizer/stator_current_scaling/i_s_norm"
+        stateTorqueRef = masterVariablesPrefix + "Controller/Featurizer/T_ref_scaling/Out1"
+        action = masterVariablesPrefix + "Controller/Action_Processing/EpsilonSafetyActionSelection/a_policy"
         reward = masterVariablesPrefix + "Reward function/reward"
         doneFlag = masterVariablesPrefix + "Reward function/done flag"
 
@@ -195,7 +201,7 @@ if __name__ == "__main__":
         print("Creating Capture...")
         DemoCapture = DemoMAPort.CreateCapture(masterTask)
         # create a list containing the names of the variables to be captured
-        DemoVariablesList = [stateOmega, stateCurrentId, stateCurrentIq, stateVoltageUd, stateVoltageUq]
+        DemoVariablesList = [learningRate, stateOmega, stateCurrentId, stateCurrentIq, stateVoltageUd, stateVoltageUq]
         DemoVariablesList.extend([statePositionScaledCos, statePositionScaledSin, stateCurrentStator, stateTorqueRef])
         DemoVariablesList.extend([action, reward, doneFlag])
         # The Python list hast to be converted to an .net Array
@@ -258,26 +264,34 @@ if __name__ == "__main__":
         nn_decoder = NeuralNetworkDecoder(architecture)
         nn_parameter_paths = []
         for _i in range(nn_decoder.nb_dense_layers):
-            nn_parameter_paths.append(masterVariablesPrefix + "Subsystem/DQN/Layer" + str(_i+1) + "/Weight/Value")
-            nn_parameter_paths.append(masterVariablesPrefix + "Subsystem/DQN/Layer" + str(_i+1) + "/Bias/Value")
+            nn_parameter_paths.append(masterVariablesPrefix + "Controller/w" + str(_i) + "/Value")
 
         print("Receiving parameters from remote RL server")
         weights = nn_decoder.recv_first_network(weights_socket)
 
+        time.sleep(2.0)
+
+        print("Receiving initialized learning_rate")
+        learning_rate = np.frombuffer(weights_socket.recv(4), dtype=np.float32)[0]
+
         print("Initializing network on MicroLabBox")
         for _i in range(nn_decoder.nb_dense_layers):
+            w = np.transpose(np.append(weights[_i * 2], [weights[_i * 2 + 1]], axis=0))
+            w_shape = np.shape(w)
+            if _i == nn_decoder.nb_dense_layers-1:
+                w = np.append(w, np.zeros([neurons_per_layer-w_shape[0], w_shape[1]]), axis=0)
+            else:
+                w = np.append(w, np.zeros([w_shape[0], neurons_per_layer+1-w_shape[1]]), axis=1)
             DemoMAPort.Write(
-                nn_parameter_paths[_i * 2],
+                nn_parameter_paths[_i],
                 MyValueFactory.CreateFloatMatrixValue(
-                    Array[Array[float]](np.transpose(weights[_i * 2]).tolist())
+                Array[Array[float]](w.tolist())
                 )
             )
-            DemoMAPort.Write(
-                nn_parameter_paths[_i * 2 + 1],
-                MyValueFactory.CreateFloatVectorValue(
-                    Array[float](weights[_i * 2 + 1].tolist())
-                )
-            )
+        DemoMAPort.Write(
+            learningRate,
+            MyValueFactory.CreateFloatValue(learning_rate)
+        )
 
         print("Waiting until Capture is running...")
         while DemoCapture.State != CaptureState.eRUNNING:
@@ -290,20 +304,23 @@ if __name__ == "__main__":
         capture_count = 0
         print("STARTING")
         weights_socket.send(bytes(1))
+        threading.Thread(target=nn_decoder.network_acquisition,
+                         args=(weights_socket, DemoMAPort, nn_parameter_paths, MyValueFactory,)).start()
+
         while DemoCapture.State != CaptureState.eFINISHED:
             # time.sleep(0.00004) # sleep is for the weak
             DemoCaptureResult = DemoCapture.Fetch(False)
+            nn_decoder.pipeline_active = True
 
             # --------------------------------------------------------------------------
             # Extract measured data from CaptureResult
             # --------------------------------------------------------------------------
 
-            print("sending")
             omegaSignalValue = DemoCaptureResult.ExtractSignalValue(masterTask, stateOmega)
             XAxisValues = convertIBaseValue(omegaSignalValue.XVector).Value
             omegaValues = convertIBaseValue(omegaSignalValue.FcnValues).Value
 
-            currentIdSignalValue = DemoCaptureResult.ExtractSignalValue(masterTask, stateCurrentId)
+            currentIdSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateCurrentId)
             currentIdValues = convertIBaseValue(currentIdSignalValue.FcnValues).Value
 
             currentIqSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateCurrentIq)
@@ -337,57 +354,46 @@ if __name__ == "__main__":
             doneFlagSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, doneFlag)
             doneFlagValues = convertIBaseValue(doneFlagSignalValue.FcnValues).Value
 
+            # housekeeping
+            newLearningRateSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, learningRate)
+            newLearningRateValue = convertIBaseValue(newLearningRateSignalValue.FcnValues).Value
+
+
             # --------------------------------------------------------------------------
             # Write the fetched data samples into the console window
             # --------------------------------------------------------------------------
 
             # For MP applications, the number of samples fetched by the masterApplication and the slaveApplication may be different.
             # To avoid IndexOutOfBounds errors, the lower value for NSamples is used. For single processor platforms, both values are the same.
-            for date in zip(XAxisValues, omegaValues, currentIdValues, currentIqValues, voltageUdValues,
-                            voltageUqValues, positionCosValues, positionSinValues, statorCurrentValues,
-                            torqueRefValues, actionValues, rewardValues, doneFlagValues):
+            for date in zip(XAxisValues, newLearningRateValue, omegaValues, currentIdValues, currentIqValues,
+                            voltageUdValues, voltageUqValues, positionCosValues, positionSinValues,
+                            statorCurrentValues, torqueRefValues, actionValues, rewardValues, doneFlagValues):
+
+                #print(date)
 
                 # convert float data list to bytes
                 b = bytes()
                 b = b.join((struct.pack('f', val) for val in date))
 
                 # send bytes
-                data_socket.send(b)
-                # if (len(b) < BUFFER_SIZE):
-                #     data_socket.send(b)
-                # else:
-                #     for i in range(0, len(b) // BUFFER_SIZE):
-                #         data_socket.send(b[i * BUFFER_SIZE:(i + 1) * BUFFER_SIZE])
-                #
-                #     if len(b) > ((i + 1) * BUFFER_SIZE):
-                #         data_socket.send(b[(i + 1) * BUFFER_SIZE:])
+                if (len(b) <= BUFFER_SIZE):
+                    data_socket.send(b)
+                else:
+                    for i in range(0, len(b) // BUFFER_SIZE):
+                        data_socket.send(b[i * BUFFER_SIZE:(i + 1) * BUFFER_SIZE])
 
-                # remove data from byte stream for next data acquisition
+                    if len(b) > ((i + 1) * BUFFER_SIZE):
+                        data_socket.send(b[(i + 1) * BUFFER_SIZE:])
+
+                #remove data from byte stream for next data acquisition
                 b = bytes()
 
-            print("receiving")
-            weights = nn_decoder.recv_network(weights_socket)
-            weights_socket.send(bytes(1))
-            a_time = time.time()
-            for _i in range(nn_decoder.nb_dense_layers):
-                DemoMAPort.Write(
-                    nn_parameter_paths[_i * 2],
-                    MyValueFactory.CreateFloatMatrixValue(
-                        Array[Array[float]](np.transpose(weights[_i * 2]).tolist())
-                    )
-                )
-                DemoMAPort.Write(
-                    nn_parameter_paths[_i * 2 + 1],
-                    MyValueFactory.CreateFloatVectorValue(
-                        Array[float](weights[_i * 2 + 1].tolist())
-                    )
-                )
-            print(f"setting duration {time.time()-a_time}")
             capture_count += 1
 
         data_socket.close()
         weights_socket.close()
         print("Capturing finished.\n")
+        nn_decoder.pipeline_active = False
 
         print("Setting Trigger to 0.0 (off)\n")
         DemoMAPort.Write(manualCaptureTrigger, MyValueFactory.CreateFloatValue(0.0))
