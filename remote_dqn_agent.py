@@ -77,7 +77,6 @@ class RemoteDQNAgent(DQNAgent):
         self.learning_rate = K.backend.get_value(self.trainable_model.optimizer.optimizer.lr)
 
         self.training = True
-        self.weights_send = True
 
     def start(self, verbose=0, callbacks=None):
         """Opens the socket on the interface and the training starts.
@@ -161,10 +160,7 @@ class RemoteDQNAgent(DQNAgent):
 
         print("READY")
 
-        #self.backward_loop()
-
-        training = threading.Thread(target=self.backward_loop, args=())
-        training.start()
+        self.backward_loop()
 
     def _recv_data(self, verbose=0, log_interval=10000):
         """Main training loop, episodes do not exist, therefore we have no callbacks"""
@@ -223,7 +219,7 @@ class RemoteDQNAgent(DQNAgent):
 
         # optional: outsource SendingWeights2ControlDesk to other process?
         while not self.close_agent:
-            if select.select([self.weights_conn], [], [], 0.0)[0] and not self.weights_send:
+            if select.select([self.weights_conn], [], [], 0.0)[0]:
                 self.weights_conn.recv(1024)
                 for _i, _layer_dim in enumerate(self.architecture):
                     if len(_layer_dim) > 0:
@@ -242,9 +238,6 @@ class RemoteDQNAgent(DQNAgent):
 
                         if len(b) > ((i + 1) * self.weightBufferSize):
                             self.weights_conn.send(b[(i + 1) * self.weightBufferSize:])
-                self.weights_send = True
-            else:
-                time.sleep(0.05)
 
 
     def close(self):
@@ -352,5 +345,4 @@ class RemoteDQNAgent(DQNAgent):
                     self.update_target_model_hard()
 
                 self.model_weights = self.model.get_weights()
-                self.weights_send = False
 
