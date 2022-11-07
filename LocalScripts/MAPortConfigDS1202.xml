@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PortConfigurations xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<MAPortConfig>
+        <!--<SystemDescriptionFile>C:\Users\Public\RL_Reforce_CCSandFCS\reforce_experiment_fcs.sdf</SystemDescriptionFile>-->
+		<SystemDescriptionFile>C:\Users\mschenke\Documents\DQDTC_V1_1\dqdtc_sil.sdf</SystemDescriptionFile>
+        <!-- The processor board on which the application is running, e.g. DS1006, SCALEXIO, or VEOS -->
+		<PlatformName>DS1202</PlatformName>
+	</MAPortConfig>
+</PortConfigurations>
