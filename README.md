@@ -1,13 +1,7 @@
 # EdgeRL
 Edge Reinforcement Learning for Real-World Control Applications
 
-<div class="video-block">
-    <iframe max-width=100% height=auto
-      src="https://www.youtube.com/watch?v=hQ49Mc6LV78" frameborder="0"
-      allow="encrypted-media"
-      allowfullscreen>
-    </iframe>
-</div>
+{% include youtube.html id="hQ49Mc6LV78" %}
 
 The toolchain featured in this repository is to be used for reinforcement learning (RL) applications within real-world experiments. 
 State transition samples that have been measured on an available plant system are sent from the test bench computer to an edge computing workstation via TCP/IP.
