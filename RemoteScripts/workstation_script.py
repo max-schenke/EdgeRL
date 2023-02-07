@@ -7,6 +7,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from rl.memory import SequentialMemory
 import threading
+import numpy as np
+
 
 def input_parser(*objects_to_close):
     msg = ''
@@ -18,33 +20,37 @@ def input_parser(*objects_to_close):
 
 if __name__ == '__main__':
     #tf.compat.v1.disable_eager_execution() #? needed? y/n?
-    cyberdyne = '131.234.172.197'
-    office = '131.234.124.79'
-    local = '127.0.0.1'
-    address = office
+    address = # IP address of this workstation
 
     nb_actions = 8
-    observation_length = 9
+    observation_length = 14
     window_length = 1
 
     nb_layers = 10
-    nb_neurons = 127
+    dqn_neurons = 90
+    #aqtor_neurons = 90
     leaky_relu_parameter = 0.3
-    learning_rate = 5e-5
+    learning_rate = 1e-3
     memory_buffer_size = 400000
     gamma = 0.85
 
-
-
+    ### DQN
     model = Sequential()
     model.add(Flatten(input_shape=(window_length, observation_length)))
     for i in range(nb_layers-1):
-        model.add(Dense(nb_neurons, activation='linear'))
+        model.add(Dense(dqn_neurons, activation='linear'))
         model.add(LeakyReLU(alpha=leaky_relu_parameter))
-    model.add(Dense(nb_actions,
-                    activation='linear'
-                    ))
+    raw_q = Dense(nb_actions, activation='linear')(model(model.input))
 
+    model = tf.keras.Model(model.inputs, raw_q)
+
+
+
+
+    weights = model.get_weights()
+    for i, w in enumerate(weights):
+        weights[i] = 1 * w
+    model.set_weights(weights)
 
     memory = SequentialMemory(
         limit=memory_buffer_size,
@@ -74,6 +80,5 @@ if __name__ == '__main__':
         learning_rate=learning_rate
     )
 
-    #weight_saver = WeightSaver('TestingWeights', load=False, save_interval=50000)
-    threading.Thread(target=input_parser, args=(agent,)).start() # needed?
+    threading.Thread(target=input_parser, args=(agent,)).start()  # needed?
     agent.start(verbose=2)

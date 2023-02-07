@@ -53,7 +53,7 @@ class RemoteDQNAgent(DQNAgent):
         self.address = address
         self.data_port = data_port
         self.observation_length = observation_length
-        self.measurement_length = 5 + self.observation_length  # = 1t + 1lr + 9s + 1a + 1r + 1d
+        self.measurement_length = 5 + self.observation_length  # = 1t + 1lr + observation_length + 1a + 1r + 1d
 
         # define entries of received data
         self.time_idx = 0
@@ -73,10 +73,14 @@ class RemoteDQNAgent(DQNAgent):
         self._step_offset = step_offset
         self.added_experiences = 0
 
-        self.compile(optimizer(lr=learning_rate))
-        self.learning_rate = K.backend.get_value(self.trainable_model.optimizer.optimizer.lr)
+        self.compile(optimizer(learning_rate=learning_rate))
+        self.learning_rate = K.backend.get_value(self.trainable_model.optimizer.optimizer.learning_rate)
 
         self.training = True
+
+        self.train_time_avg = 0
+        self.n = 0
+        self.last_print_time = time.time()
 
     def start(self, verbose=0, callbacks=None):
         """Opens the socket on the interface and the training starts.
@@ -218,26 +222,29 @@ class RemoteDQNAgent(DQNAgent):
     def _send_weights(self):
 
         # optional: outsource SendingWeights2ControlDesk to other process?
-        while not self.close_agent:
-            if select.select([self.weights_conn], [], [], 0.0)[0]:
-                self.weights_conn.recv(1024)
-                for _i, _layer_dim in enumerate(self.architecture):
-                    if len(_layer_dim) > 0:
-                        _layer = np.ndarray.flatten(self.model_weights[_i])
-                    else:
-                        _layer = self.model_weights[_i]
-                    b = bytes()
-                    b = b.join((struct.pack('f', val) for val in _layer))
+        try:
+            while not self.close_agent:
+                if select.select([self.weights_conn], [], [], 0.0)[0]:
+                    self.weights_conn.recv(1024)
+                    for _i, _layer_dim in enumerate(self.architecture):
+                        if len(_layer_dim) > 0:
+                            _layer = np.ndarray.flatten(self.model_weights[_i])
+                        else:
+                            _layer = self.model_weights[_i]
+                        b = bytes()
+                        b = b.join((struct.pack('f', val) for val in _layer))
 
-                    # send bytes
-                    if (len(b) < self.weightBufferSize):
-                        self.weights_conn.send(b)
-                    else:
-                        for i in range(0, len(b) // self.weightBufferSize):
-                            self.weights_conn.send(b[i * self.weightBufferSize:(i + 1) * self.weightBufferSize])
+                        # send bytes
+                        if (len(b) < self.weightBufferSize):
+                            self.weights_conn.send(b)
+                        else:
+                            for i in range(0, len(b) // self.weightBufferSize):
+                                self.weights_conn.send(b[i * self.weightBufferSize:(i + 1) * self.weightBufferSize])
 
-                        if len(b) > ((i + 1) * self.weightBufferSize):
-                            self.weights_conn.send(b[(i + 1) * self.weightBufferSize:])
+                            if len(b) > ((i + 1) * self.weightBufferSize):
+                                self.weights_conn.send(b[(i + 1) * self.weightBufferSize:])
+        finally:
+            self.close_agent = True
 
 
     def close(self):
@@ -257,6 +264,8 @@ class RemoteDQNAgent(DQNAgent):
         with tf.device('/cpu:0'):
             while not self.close_agent:
                 if self.step > self.nb_steps_warmup and self.step % self.train_interval == 0:
+                    train_start = time.time()
+
                     experiences = self.memory.sample(self.batch_size)
                     assert len(experiences) == self.batch_size
 
@@ -334,15 +343,24 @@ class RemoteDQNAgent(DQNAgent):
                     if self.processor is not None:
                         metrics += self.processor.metrics
 
-                    if self.learning_rate != self.new_learning_rate:
+                    if self.learning_rate != self.new_learning_rate and time.time()-self.last_print_time >= 10:
                         print(f"using lr = {self.new_learning_rate}")
                         K.backend.set_value(self.trainable_model.optimizer.optimizer.lr, self.new_learning_rate)
                         self.learning_rate = self.new_learning_rate
+                        self.last_print_time = time.time()
+
+                    train_stop = time.time()
+                    self.train_time_avg = (self.train_time_avg * self.n + (train_stop-train_start)) / (self.n+1)
+                    self.n += 1
+
                 else:
-                    time.sleep(0.2)
+                    pass
+                    #time.sleep(0.2)
 
                 if self.target_model_update >= 1 and self.step % self.target_model_update == 0:
                     self.update_target_model_hard()
 
                 self.model_weights = self.model.get_weights()
 
+            print("FINISH")
+            print(self.train_time_avg)
