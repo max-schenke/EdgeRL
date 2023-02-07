@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PortConfigurations xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<MAPortConfig>
-		<SystemDescriptionFile>C:\Path\To\Corresponding\SDF.sdf</SystemDescriptionFile>     
-		<!-- The processor board on which the application is running, e.g. DS1006, SCALEXIO, or VEOS (DS1202=MicroLabBox) -->
+        <SystemDescriptionFile>Path_To_SDF</SystemDescriptionFile>
+        <!-- The processor board on which the application is running, e.g. DS1006, SCALEXIO, or VEOS (DS1202==MicroLabBox) -->
 		<PlatformName>DS1202</PlatformName>
 	</MAPortConfig>
 </PortConfigurations>

@@ -51,11 +51,10 @@ import struct
 from interface_functions import NeuralNetworkDecoder
 import threading
 
-TCP_IP = '131.234.124.79'  # host ip Address or "local host"
+TCP_IP = # IP Address of the workstation computer
 TCP_PORT_DATA = 1030  #
 TCP_PORT_WEIGHTS = 1031  #
-BUFFER_SIZE = 1008 # = floor(1024 // (measurement_size * 4)) * (measurement_size * 4) # <- 4 = nb of bits per float
-neurons_per_layer = 127
+BUFFER_SIZE = 988 # = floor(1024 // (measurement_size * 4)) * (measurement_size * 4) # <- 4 = nb of bits per float
 b = bytes()  # byte container for dSPACE XIL API lists
 # create socket and connect
 data_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # TCP
@@ -89,7 +88,9 @@ MAPortConfigFile = r"MAPortConfigDS1202.xml"
 
 # Set the name of the task here (specified in the application's TRC file)
 # Note: the default task name is "HostService" for PHS bus systems, "Periodic Task 1" for VEOS systems
-Task = "HostService"
+#Task = "HostService"
+
+Task = "RL_Reforce_Main"  # Specified in the Data Capture Block in Simulink
 # ------------------------------------------------------------------------------------------------
 
 
@@ -130,7 +131,6 @@ if __name__ == "__main__":
     DemoMAPort = None
 
     try:
-
         # --------------------------------------------------------------------------
         # Create a TestbenchFactory object; the TestbenchFactory is needed to 
         # create the vendor-specific Testbench
@@ -154,7 +154,6 @@ if __name__ == "__main__":
         MyCapturingFactory = MyTestbench.CapturingFactory
         MyWatcherFactory = MyTestbench.WatcherFactory
         MyDurationFactory = MyTestbench.DurationFactory
-
         # --------------------------------------------------------------------------
         # Create and configure an MAPort object and start the simulation
         # --------------------------------------------------------------------------
@@ -177,23 +176,45 @@ if __name__ == "__main__":
         # ----------------------------------------------------------------------
         # Define the variables to be captured
         # ----------------------------------------------------------------------
+
+        DQDTCPrefix = "Control_Scheme/DQ_DTC/"
+        #DQDTCPrefix = "Controller/"
+
         # housekeeping
-        manualCaptureTrigger = masterVariablesPrefix + "Manual_Trigger/Value"
-        learningRate = masterVariablesPrefix + "Learning_Rate/Value"
+        manualCaptureTrigger = masterVariablesPrefix + DQDTCPrefix + "Manual_Trigger/Out1"
+        #manualCaptureTrigger = masterVariablesPrefix + DQDTCPrefix + "Manual_Trigger/Value"
+        learningRate = masterVariablesPrefix + DQDTCPrefix + "learning_rate/Out1"
+        #learningRate = masterVariablesPrefix + DQDTCPrefix + "Learning_Rate/Value"
+        updateTime = masterVariablesPrefix + DQDTCPrefix + "Update_Time/Value"
 
         # measurement
-        stateOmega = masterVariablesPrefix + "Controller/Featurizer/omega_me_scaling/Out1"
-        stateCurrentId = masterVariablesPrefix + "Controller/Featurizer/current_scaling/Out1[0]"
-        stateCurrentIq = masterVariablesPrefix + "Controller/Featurizer/current_scaling/Out1[1]"
-        stateVoltageUd = masterVariablesPrefix + "Controller/Featurizer/u_dq_scaling/Out1[0]"
-        stateVoltageUq = masterVariablesPrefix + "Controller/Featurizer/u_dq_scaling/Out1[1]"
-        statePositionScaledCos = masterVariablesPrefix + "Controller/Featurizer/position_scaling/Out1[0]"
-        statePositionScaledSin = masterVariablesPrefix + "Controller/Featurizer/position_scaling/Out1[1]"
-        stateCurrentStator = masterVariablesPrefix + "Controller/Featurizer/stator_current_scaling/i_s_norm"
-        stateTorqueRef = masterVariablesPrefix + "Controller/Featurizer/T_ref_scaling/Out1"
-        action = masterVariablesPrefix + "Controller/Action_Processing/EpsilonSafetyActionSelection/a_policy"
-        reward = masterVariablesPrefix + "Reward function/reward"
-        doneFlag = masterVariablesPrefix + "Reward function/done flag"
+        stateOmega = masterVariablesPrefix + DQDTCPrefix + "Featurizer/omega_me_scaling/Out1"
+        stateCurrentId = masterVariablesPrefix + DQDTCPrefix + "Featurizer/current_scaling/Out1[0]"
+        stateCurrentIq = masterVariablesPrefix + DQDTCPrefix + "Featurizer/current_scaling/Out1[1]"
+
+        stateVoltageUd_k1 = masterVariablesPrefix + DQDTCPrefix + "Featurizer/voltage_scaling0/Out1[0]"
+        stateVoltageUq_k1 = masterVariablesPrefix + DQDTCPrefix + "Featurizer/voltage_scaling0/Out1[1]"
+        stateVoltageUd_k2 = masterVariablesPrefix + DQDTCPrefix + "Featurizer/voltage_scaling1/Out1[0]"
+        stateVoltageUq_k2 = masterVariablesPrefix + DQDTCPrefix + "Featurizer/voltage_scaling1/Out1[1]"
+        stateVoltageUd_k3 = masterVariablesPrefix + DQDTCPrefix + "Featurizer/voltage_scaling2/Out1[0]"
+        stateVoltageUq_k3 = masterVariablesPrefix + DQDTCPrefix + "Featurizer/voltage_scaling2/Out1[1]"
+
+        statePositionScaledCos = masterVariablesPrefix + DQDTCPrefix + "Featurizer/position_scaling/Out1[0]"
+        statePositionScaledSin = masterVariablesPrefix + DQDTCPrefix + "Featurizer/position_scaling/Out1[1]"
+        stateCurrentStator = masterVariablesPrefix + DQDTCPrefix + "Featurizer/stator_current_scaling/i_s_norm"
+        stateDCLinkVoltage = masterVariablesPrefix + DQDTCPrefix + "Featurizer/DC_link_scaling/u_DC_norm"
+        stateTorqueRef = masterVariablesPrefix + DQDTCPrefix + "Featurizer/T_ref_scaling/Out1"
+
+        action = masterVariablesPrefix + DQDTCPrefix + "Action_Processing/EpsilonSafetyActionSelection/a_policy"
+        reward = masterVariablesPrefix + DQDTCPrefix + "Reward function/reward"
+        #reward = masterVariablesPrefix + "Reward function/reward"
+        doneFlag = masterVariablesPrefix + DQDTCPrefix + "Reward function/done flag"
+        #doneFlag = masterVariablesPrefix + "Reward function/done flag"
+
+        DemoMAPort.Write(
+            updateTime,
+            MyValueFactory.CreateFloatValue(np.finfo(float).max)
+        )
 
         # --------------------------------------------------------------------------
         # Create and initialize Capture object
@@ -201,9 +222,10 @@ if __name__ == "__main__":
         print("Creating Capture...")
         DemoCapture = DemoMAPort.CreateCapture(masterTask)
         # create a list containing the names of the variables to be captured
-        DemoVariablesList = [learningRate, stateOmega, stateCurrentId, stateCurrentIq, stateVoltageUd, stateVoltageUq]
-        DemoVariablesList.extend([statePositionScaledCos, statePositionScaledSin, stateCurrentStator, stateTorqueRef])
-        DemoVariablesList.extend([action, reward, doneFlag])
+        DemoVariablesList = [learningRate, stateOmega, stateCurrentId, stateCurrentIq]
+        DemoVariablesList.extend([stateVoltageUd_k1, stateVoltageUq_k1, stateVoltageUd_k2, stateVoltageUq_k2, stateVoltageUd_k3, stateVoltageUq_k3])
+        DemoVariablesList.extend([statePositionScaledCos, statePositionScaledSin, stateCurrentStator])
+        DemoVariablesList.extend([stateDCLinkVoltage, stateTorqueRef, action, reward, doneFlag])
         # The Python list hast to be converted to an .net Array
         DemoCapture.Variables = Array[str](DemoVariablesList)
 
@@ -261,10 +283,15 @@ if __name__ == "__main__":
         print("Receiving architecture from remote RL server")
         binary_architecture = weights_socket.recv(1024)
         architecture = np.frombuffer(binary_architecture, dtype=np.float32)
-        nn_decoder = NeuralNetworkDecoder(architecture)
+        experiment_name = "C:/Users/mschenke/Desktop/DQDTC_weights/train_10min_09"
+        print(experiment_name)
+        nn_decoder = NeuralNetworkDecoder(experiment_name=experiment_name,
+                                          architecture=architecture)
         nn_parameter_paths = []
         for _i in range(nn_decoder.nb_dense_layers):
-            nn_parameter_paths.append(masterVariablesPrefix + "Controller/w" + str(_i) + "/Value")
+            nn_parameter_paths.append(masterVariablesPrefix + "Control_Scheme/Reconfigure_Network/Subsystem/w" + str(_i) + "/Value")
+            #nn_parameter_paths.append(masterVariablesPrefix + "Controller/Subsystem/w" + str(_i) + "/Value")
+        print(nn_parameter_paths)
 
         print("Receiving parameters from remote RL server")
         weights = nn_decoder.recv_first_network(weights_socket)
@@ -278,34 +305,36 @@ if __name__ == "__main__":
         for _i in range(nn_decoder.nb_dense_layers):
             w = np.transpose(np.append(weights[_i * 2], [weights[_i * 2 + 1]], axis=0))
             w_shape = np.shape(w)
-            if _i == nn_decoder.nb_dense_layers-1:
-                w = np.append(w, np.zeros([neurons_per_layer-w_shape[0], w_shape[1]]), axis=0)
+            if _i == 0:
+                w = np.append(w, np.zeros([w_shape[0], nn_decoder.nb_neurons_per_layer + 1 - w_shape[1]]), axis=1)
             else:
-                w = np.append(w, np.zeros([w_shape[0], neurons_per_layer+1-w_shape[1]]), axis=1)
+                w = np.append(w, np.zeros([nn_decoder.nb_neurons_per_layer - w_shape[0], w_shape[1]]), axis=0)
+
             DemoMAPort.Write(
                 nn_parameter_paths[_i],
                 MyValueFactory.CreateFloatMatrixValue(
                 Array[Array[float]](w.tolist())
                 )
             )
-        DemoMAPort.Write(
-            learningRate,
-            MyValueFactory.CreateFloatValue(learning_rate)
-        )
+        # DemoMAPort.Write(
+        #     learningRate,
+        #     MyValueFactory.CreateFloatValue(learning_rate)
+        # )
 
         print("Waiting until Capture is running...")
         while DemoCapture.State != CaptureState.eRUNNING:
             time.sleep(0.02)
         print("Starting to fetch data...\n")
 
-        # While the Capture is running, data is fetched in intervalls.
+        # While the Capture is running, data is fetched in intervals.
         # this data can be worked with while the capturing continues.
         # In case of this demo it is just printed into the console
         capture_count = 0
         print("STARTING")
         weights_socket.send(bytes(1))
         threading.Thread(target=nn_decoder.network_acquisition,
-                         args=(weights_socket, DemoMAPort, nn_parameter_paths, MyValueFactory,)).start()
+                         args=(weights_socket, DemoMAPort, nn_parameter_paths, updateTime, MyValueFactory,)).start()
+        threading.Thread(target=nn_decoder.input_parser, args=()).start()
 
         while DemoCapture.State != CaptureState.eFINISHED:
             # time.sleep(0.00004) # sleep is for the weak
@@ -322,15 +351,23 @@ if __name__ == "__main__":
 
             currentIdSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateCurrentId)
             currentIdValues = convertIBaseValue(currentIdSignalValue.FcnValues).Value
-
             currentIqSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateCurrentIq)
             currentIqValues = convertIBaseValue(currentIqSignalValue.FcnValues).Value
 
-            voltageUdSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateVoltageUd)
-            voltageUdValues = convertIBaseValue(voltageUdSignalValue.FcnValues).Value
+            voltageUd_k1SignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateVoltageUd_k1)
+            voltageUd_k1Values = convertIBaseValue(voltageUd_k1SignalValue.FcnValues).Value
+            voltageUq_k1SignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateVoltageUq_k1)
+            voltageUq_k1Values = convertIBaseValue(voltageUq_k1SignalValue.FcnValues).Value
 
-            voltageUqSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateVoltageUq)
-            voltageUqValues = convertIBaseValue(voltageUqSignalValue.FcnValues).Value
+            voltageUd_k2SignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateVoltageUd_k2)
+            voltageUd_k2Values = convertIBaseValue(voltageUd_k2SignalValue.FcnValues).Value
+            voltageUq_k2SignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateVoltageUq_k2)
+            voltageUq_k2Values = convertIBaseValue(voltageUq_k2SignalValue.FcnValues).Value
+
+            voltageUd_k3SignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateVoltageUd_k3)
+            voltageUd_k3Values = convertIBaseValue(voltageUd_k3SignalValue.FcnValues).Value
+            voltageUq_k3SignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateVoltageUq_k3)
+            voltageUq_k3Values = convertIBaseValue(voltageUq_k3SignalValue.FcnValues).Value
 
             positionCosSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, statePositionScaledCos)
             positionCosValues = convertIBaseValue(positionCosSignalValue.FcnValues).Value
@@ -340,6 +377,9 @@ if __name__ == "__main__":
 
             statorCurrentSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateCurrentStator)
             statorCurrentValues = convertIBaseValue(statorCurrentSignalValue.FcnValues).Value
+
+            DCLinkVoltageSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateDCLinkVoltage)
+            DCLinkVoltageValue = convertIBaseValue(DCLinkVoltageSignalValue.FcnValues).Value
 
             torqueRefSignalValue = DemoCaptureResult.ExtractSignalValue(slaveTask, stateTorqueRef)
             torqueRefValues = convertIBaseValue(torqueRefSignalValue.FcnValues).Value
@@ -366,10 +406,11 @@ if __name__ == "__main__":
             # For MP applications, the number of samples fetched by the masterApplication and the slaveApplication may be different.
             # To avoid IndexOutOfBounds errors, the lower value for NSamples is used. For single processor platforms, both values are the same.
             for date in zip(XAxisValues, newLearningRateValue, omegaValues, currentIdValues, currentIqValues,
-                            voltageUdValues, voltageUqValues, positionCosValues, positionSinValues,
-                            statorCurrentValues, torqueRefValues, actionValues, rewardValues, doneFlagValues):
-
-                #print(date)
+                            voltageUd_k1Values, voltageUq_k1Values,
+                            voltageUd_k2Values, voltageUq_k2Values,
+                            voltageUd_k3Values, voltageUq_k3Values,
+                            positionCosValues, positionSinValues, statorCurrentValues,
+                            DCLinkVoltageValue, torqueRefValues, actionValues, rewardValues, doneFlagValues):
 
                 # convert float data list to bytes
                 b = bytes()
@@ -395,11 +436,18 @@ if __name__ == "__main__":
         print("Capturing finished.\n")
         nn_decoder.pipeline_active = False
 
-        print("Setting Trigger to 0.0 (off)\n")
-        DemoMAPort.Write(manualCaptureTrigger, MyValueFactory.CreateFloatValue(0.0))
+        #print("Setting Trigger to 0.0 (off)\n")
+        #DemoMAPort.Write(manualCaptureTrigger, MyValueFactory.CreateFloatValue(0.0))
 
         print("")
         print("Demo successfully finished!\n")
+        nn_decoder.pipeline_active = False
+        time.sleep(0.2)
+        DemoMAPort.Write(
+            updateTime,
+            MyValueFactory.CreateFloatValue(np.finfo(float).max)
+        )
+
 
     except TestbenchPortException as ex:
         # -----------------------------------------------------------------------
@@ -414,6 +462,7 @@ if __name__ == "__main__":
         # Attention: make sure to dispose the Capture object and the MAPort object in any case to free
         # system resources like allocated memory and also resources and services on the platform
         # -----------------------------------------------------------------------
+
         if DemoCapture != None:
             DemoCapture.Dispose()
             DemoCapture = None
