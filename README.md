@@ -1,7 +1,7 @@
 # EdgeRL
 This GitHub page is associated to the paper Finite-Set Direct Torque Control via Edge Computing-Assisted Safe Reinforcement Learning for a Permanent Magnet Synchronous Motor
 
-[Read the preprint (TechRxiv)](Placeholder) or watch the video:
+[Read the preprint (TechRxiv)](10.36227/techrxiv.22032578) or watch the video:
 
 [![Coffee machine vs. machine learning: who is quicker?](
 https://markdown-videos.deta.dev/youtube/hQ49Mc6LV78)](https://www.youtube.com/watch?v=hQ49Mc6LV78)
