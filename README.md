@@ -7,6 +7,9 @@ This GitHub page is associated to the paper Finite-Set Direct Torque Control via
 https://markdown-videos.deta.dev/youtube/hQ49Mc6LV78)](https://www.youtube.com/watch?v=hQ49Mc6LV78)
 
 The toolchain featured in this repository is used for reinforcement learning (RL) applications within real-world experiments. It was originally crafted for finite-set motor control.
+
+![](./Safeguarded_DQDTC_Scheme.pdf)
+
 State transition samples that have been measured on an available plant system are sent from the test bench computer to an edge computing workstation via TCP/IP.
 On the workstation, the applied training algorithm (Deep Q Network, DQN) processes the acquired samples in order to determine a new policy for controlling the plant system.
 The weighting parameters describing the new policy are then sent back to the test bench and can be applied within the operating rapid-control prototyping interface.
@@ -24,3 +27,5 @@ Software:
   - Edge Workstation (Windows or Linux):
     - Python
     - that's it
+    
+    ![](./Edge_RL_Pipeline.pdf)
