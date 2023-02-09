@@ -283,7 +283,7 @@ if __name__ == "__main__":
         print("Receiving architecture from remote RL server")
         binary_architecture = weights_socket.recv(1024)
         architecture = np.frombuffer(binary_architecture, dtype=np.float32)
-        experiment_name = "C:/Users/mschenke/Desktop/DQDTC_weights/train_10min_09"
+        experiment_name = "experiment_path"
         print(experiment_name)
         nn_decoder = NeuralNetworkDecoder(experiment_name=experiment_name,
                                           architecture=architecture)
