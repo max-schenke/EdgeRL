@@ -5,6 +5,20 @@ This GitHub page features the EdgeRL toolchain used in the paper "Finite-Set Dir
 
 [![Coffee machine vs. machine learning: who is quicker?](https://markdown-videos.deta.dev/youtube/hQ49Mc6LV78)](https://www.youtube.com/watch?v=hQ49Mc6LV78)
 
+## Citing:
+Please cite the paper if you make use of anything in this repository:
+```
+@ARTICLE{TPEL.2023.3303651,
+  author={Schenke, Maximilian and Haucke-Korber, Barnabas and Wallscheid, Oliver},
+  journal={IEEE Transactions on Power Electronics}, 
+  title={Finite-Set Direct Torque Control via Edge-Computing-Assisted Safe Reinforcement Learning for a Permanent-Magnet Synchronous Motor}, 
+  year={2023},
+  volume={38},
+  number={11},
+  pages={13741-13756},
+  doi={10.1109/TPEL.2023.3303651}}
+```
+
 The toolchain featured in this repository is used for reinforcement learning (RL) applications within real-world experiments. It was originally crafted for finite-set motor control.
 
 <img src="./Safeguarded_DQDTC_Scheme.png" width="500" />
